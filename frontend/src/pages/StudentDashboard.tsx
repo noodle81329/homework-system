@@ -1,23 +1,27 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, CheckCircle, FileText, Users, LogOut, Loader2 } from 'lucide-react';
 import api from '../api';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const classSlug = searchParams.get('class');
+
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   
-  // Parse user info safely
+  // 解析使用者資訊
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
   const studentName = user?.name || '未知學生';
 
   const fetchStatus = async () => {
     try {
-      const res = await api.get('/student/status');
+      const params = classSlug ? { class_slug: classSlug } : {};
+      const res = await api.get('/student/status', { params });
       setStatus(res.data);
     } catch (err) {
       if ((err as any).response?.status === 401) {
@@ -51,7 +55,8 @@ const StudentDashboard = () => {
     formData.append('file', file);
 
     try {
-      await api.post('/student/upload', formData, {
+      const params = classSlug ? `?class_slug=${classSlug}` : '';
+      await api.post(`/student/upload${params}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setFile(null);
@@ -77,7 +82,10 @@ const StudentDashboard = () => {
       <div className="w-full flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">學生作業系統</h1>
-          <p className="text-slate-500 text-sm">Hi, {studentName} 同學</p>
+          <p className="text-slate-500 text-sm">
+            Hi, {studentName} 同學
+            {classSlug && <span className="ml-2 text-indigo-500">｜班級：{classSlug}</span>}
+          </p>
         </div>
         <button 
           onClick={handleLogout}

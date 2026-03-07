@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ShieldCheck, LogIn, AlertCircle, ArrowRight } from 'lucide-react';
 import api from '../api';
 
 const StudentLogin = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const classSlug = searchParams.get('class');
+  
   const [error, setError] = useState('');
   const [studentName, setStudentName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +21,11 @@ const StudentLogin = () => {
       return;
     }
     
+    if (!classSlug && !showTeacherLogin) {
+      setError('缺少班級參數，請確認連結是否正確（網址應包含 ?class=xxx）');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
@@ -27,7 +35,7 @@ const StudentLogin = () => {
       });
       localStorage.setItem('token', res.data.access_token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
-      navigate('/student');
+      navigate(`/student?class=${classSlug}`);
     } catch (err) {
       setError('登入失敗，請稍後再試。');
     } finally {
@@ -61,7 +69,12 @@ const StudentLogin = () => {
           <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
             <ShieldCheck size={28} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">作業繳交入口</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">作業繳交入口</h1>
+            {classSlug && (
+              <p className="text-sm text-indigo-500 font-medium">班級：{classSlug}</p>
+            )}
+          </div>
         </div>
         <button 
           onClick={() => setShowTeacherLogin(!showTeacherLogin)}
@@ -77,6 +90,14 @@ const StudentLogin = () => {
         <div className="w-full bg-red-50 text-red-600 px-5 py-4 rounded-2xl flex items-center gap-3 mb-6 border border-red-100">
           <AlertCircle size={20} />
           <span className="font-medium">{error}</span>
+        </div>
+      )}
+
+      {/* 缺少 class 參數的警示（僅學生模式顯示） */}
+      {!classSlug && !showTeacherLogin && (
+        <div className="w-full bg-amber-50 text-amber-700 px-5 py-4 rounded-2xl flex items-center gap-3 mb-6 border border-amber-100">
+          <AlertCircle size={20} />
+          <span className="font-medium">此連結未包含班級資訊，請向教師索取正確的繳交連結。</span>
         </div>
       )}
 
@@ -117,10 +138,11 @@ const StudentLogin = () => {
               placeholder="例如：王小明"
               className="w-full px-5 py-4 border border-slate-200 rounded-2xl text-lg text-center focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-700 placeholder:text-slate-400 placeholder:font-normal"
               autoFocus
+              disabled={!classSlug}
             />
             <button 
               type="submit"
-              disabled={loading || !studentName.trim()}
+              disabled={loading || !studentName.trim() || !classSlug}
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-medium text-lg py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-200/50"
             >
               {loading ? '驗證中...' : <>進入繳交系統 <ArrowRight size={20} /></>}
