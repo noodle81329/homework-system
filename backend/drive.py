@@ -32,7 +32,8 @@ def upload_file_to_drive(file_obj, filename, folder_id, mime_type):
     file = service.files().create(
         body=file_metadata,
         media_body=media,
-        fields='id'
+        fields='id',
+        supportsAllDrives=True
     ).execute()
     
     return file.get('id')
@@ -43,7 +44,7 @@ def delete_file_from_drive(file_id):
         print(f"Mock Delete: {file_id}")
         return True
     try:
-        service.files().delete(fileId=file_id).execute()
+        service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
         return True
     except Exception as e:
         print(f"Failed to delete {file_id}: {e}")
@@ -59,7 +60,9 @@ def list_files_in_folder(folder_id):
             q=f"'{folder_id}' in parents and trashed = false",
             fields="files(id, name, createdTime)",
             pageSize=1000,
-            orderBy="createdTime desc"
+            orderBy="createdTime desc",
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True
         ).execute()
         return results.get('files', [])
     except Exception as e:
