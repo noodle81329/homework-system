@@ -70,7 +70,14 @@ def get_student_status(
             "assignment_name": assignment_name
         }
         
-    files = drive.list_files_in_folder(folder_id)
+    try:
+        files = drive.list_files_in_folder(folder_id)
+    except Exception as e:
+        import googleapiclient.errors
+        if isinstance(e, googleapiclient.errors.HttpError):
+            if e.resp.status in [403, 404]:
+                 raise HTTPException(status_code=400, detail=f"Google Drive 資料夾無效或沒有授權，請教師確認資料夾 ID 正確，並已與 Service Account 共用編輯權限。")
+        raise HTTPException(status_code=500, detail=f"讀取 Drive 失敗: {str(e)}")
     
     # 決定前綴
     if assignment_name:
@@ -123,15 +130,22 @@ async def upload_homework(
         
     uploaded_filename = f"{prefix}{file.filename}"
     
-    files = drive.list_files_in_folder(folder_id)
-    my_file = next((f for f in files if f['name'].startswith(prefix)), None)
-    if my_file:
-        drive.delete_file_from_drive(my_file['id'])
-    
-    contents = await file.read()
-    file_obj = io.BytesIO(contents)
-    
-    drive.upload_file_to_drive(file_obj, uploaded_filename, folder_id, file.content_type)
+    try:
+        files = drive.list_files_in_folder(folder_id)
+        my_file = next((f for f in files if f['name'].startswith(prefix)), None)
+        if my_file:
+            drive.delete_file_from_drive(my_file['id'])
+        
+        contents = await file.read()
+        file_obj = io.BytesIO(contents)
+        
+        drive.upload_file_to_drive(file_obj, uploaded_filename, folder_id, file.content_type)
+    except Exception as e:
+        import googleapiclient.errors
+        if isinstance(e, googleapiclient.errors.HttpError):
+            if e.resp.status in [403, 404]:
+                 raise HTTPException(status_code=400, detail=f"Google Drive 資料夾權限有誤 (ID可能填錯或未共用)。詳細錯誤: {e.reason}")
+        raise HTTPException(status_code=500, detail=f"上傳失敗，系統發生錯誤: {str(e)}")
     
     return {"message": "Upload successful", "file_name": file.filename}
 
@@ -147,7 +161,10 @@ def get_all_submissions(
     if not folder_id:
         return []
         
-    files = drive.list_files_in_folder(folder_id)
+    try:
+        files = drive.list_files_in_folder(folder_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
     submissions = []
     

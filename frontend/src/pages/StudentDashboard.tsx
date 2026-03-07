@@ -61,8 +61,13 @@ const StudentDashboard = () => {
       });
       setFile(null);
       await fetchStatus();
-    } catch (err) {
-      alert('上傳失敗，請稍後再試。');
+    } catch (err: any) {
+      const errorDetail = err.response?.data?.detail;
+      if (errorDetail) {
+        alert(`上傳失敗：\n${errorDetail}`);
+      } else {
+        alert('上傳失敗，請稍後再試。');
+      }
     } finally {
       setUploading(false);
     }
