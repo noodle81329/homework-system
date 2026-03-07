@@ -1,4 +1,3 @@
-from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 import os.path
@@ -7,32 +6,40 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-SERVICE_ACCOUNT_FILE = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'service-account.json')
-TOKEN_FILE = os.environ.get('GOOGLE_TOKEN_FILE', 'token.json')
+
+TOKEN_PATHS = [
+    os.environ.get('GOOGLE_TOKEN_FILE'),
+    'token.json',
+    '../token.json',
+    '/etc/secrets/token.json'
+]
 
 def get_drive_service():
     creds = None
     
     # 首先檢查有沒有透過 OAuth 取得的個人授權檔 token.json
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-        # 授權檔如果過期則重新整理
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+    for path in TOKEN_PATHS:
+        if path and os.path.exists(path):
             try:
-                with open(TOKEN_FILE, 'w') as token:
-                    token.write(creds.to_json())
+                creds = Credentials.from_authorized_user_file(path, SCOPES)
+                # 授權檔如果過期則重新整理
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                    try:
+                        # 嘗試將更新後的 token 寫回，若在唯讀環境(如 Render)會失敗，但不影響當次執行
+                        with open(path, 'w') as token:
+                            token.write(creds.to_json())
+                    except Exception as e:
+                        print(f"無法儲存更新後的 token (這在 Render 等雲端環境很常見): {e}")
+                print(f"成功從 {path} 載入授權 token！")
+                break
             except Exception as e:
-                print(f"Failed to save refreshed token: {e}")
+                print(f"找到 {path} 但解析失敗: {e}")
                 
-    # 沒有的話再看看有沒有舊的 service-account.json
-    elif os.path.exists(SERVICE_ACCOUNT_FILE):
-        creds = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-            
     if not creds:
-        print(f"Warning: Neither {TOKEN_FILE} nor {SERVICE_ACCOUNT_FILE} found. API calls will likely fail.")
-        return None
+        error_msg = "!!! 嚴重錯誤：找不到任何正確的 token.json !!! 請確定您已在 Render 中設定了 Secret Files"
+        print(error_msg)
+        raise FileNotFoundError(error_msg)
         
     service = build('drive', 'v3', credentials=creds)
     return service
