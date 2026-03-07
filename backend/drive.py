@@ -61,6 +61,7 @@ def list_files_in_folder(folder_id):
             fields="files(id, name, createdTime)",
             pageSize=1000,
             orderBy="createdTime desc",
+            corpora="allDrives",
             includeItemsFromAllDrives=True,
             supportsAllDrives=True
         ).execute()
