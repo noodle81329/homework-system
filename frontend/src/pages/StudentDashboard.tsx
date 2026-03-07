@@ -12,6 +12,7 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   // 解析使用者資訊
   const userStr = localStorage.getItem('user');
@@ -45,6 +46,24 @@ const StudentDashboard = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -154,12 +173,21 @@ const StudentDashboard = () => {
         </p>
 
         <div className="w-full max-w-lg">
-          <label className="w-full flex flex-col items-center px-4 py-8 bg-slate-50 text-slate-500 rounded-2xl border-2 border-dashed border-slate-200 cursor-pointer hover:bg-slate-100/50 hover:border-indigo-300 transition-colors">
-            <UploadCloud size={48} className="text-indigo-400 mb-4" />
+          <label 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`w-full flex flex-col items-center px-4 py-8 rounded-2xl border-2 border-dashed cursor-pointer transition-colors ${
+              isDragging 
+                ? 'bg-indigo-50 border-indigo-500 text-indigo-500' 
+                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100/50 hover:border-indigo-300'
+            }`}
+          >
+            <UploadCloud size={48} className={isDragging ? "text-indigo-500 mb-4" : "text-indigo-400 mb-4"} />
             <span className="text-lg font-medium mb-1 truncate max-w-full px-4 text-center">
               {file ? file.name : "點擊選擇檔案上傳"}
             </span>
-            <span className="text-sm text-slate-400">
+            <span className={`text-sm ${isDragging ? "text-indigo-400" : "text-slate-400"}`}>
               {file ? "檔案已準備，請點擊下方按鈕上傳" : "或將檔案拖曳至此區域"}
             </span>
             <input type="file" className="hidden" onChange={handleFileChange} />
