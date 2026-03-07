@@ -1,19 +1,39 @@
-import os
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+import os.path
 import googleapiclient.errors
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 SERVICE_ACCOUNT_FILE = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'service-account.json')
+TOKEN_FILE = os.environ.get('GOOGLE_TOKEN_FILE', 'token.json')
 
 def get_drive_service():
-    if not os.path.exists(SERVICE_ACCOUNT_FILE):
-        print(f"Warning: {SERVICE_ACCOUNT_FILE} not found. Drive uploads will fail.")
+    creds = None
+    
+    # 首先檢查有沒有透過 OAuth 取得的個人授權檔 token.json
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+        # 授權檔如果過期則重新整理
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            try:
+                with open(TOKEN_FILE, 'w') as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                print(f"Failed to save refreshed token: {e}")
+                
+    # 沒有的話再看看有沒有舊的 service-account.json
+    elif os.path.exists(SERVICE_ACCOUNT_FILE):
+        creds = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+            
+    if not creds:
+        print(f"Warning: Neither {TOKEN_FILE} nor {SERVICE_ACCOUNT_FILE} found. API calls will likely fail.")
         return None
         
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     service = build('drive', 'v3', credentials=creds)
     return service
 
@@ -38,44 +58,6 @@ def upload_file_to_drive(file_obj, filename, folder_id, mime_type):
     ).execute()
     
     file_id = file.get('id')
-    
-    # 嘗試將所有權轉移給資料夾的擁有者 (解決 Quota 限額問題)
-    try:
-        # 首先要取得資料夾的擁有人
-        folder_metadata = service.files().get(fileId=folder_id, fields='owners', supportsAllDrives=True).execute()
-        if folder_metadata and 'owners' in folder_metadata and len(folder_metadata['owners']) > 0:
-            owner_email = folder_metadata['owners'][0].get('emailAddress')
-            if owner_email:
-                permission = {
-                    'type': 'user',
-                    'role': 'writer',  # 必須先設定為 writer 才能轉移擁有權給他
-                    'emailAddress': owner_email
-                }
-                # 新增權限 (先加 writer)
-                service.permissions().create(
-                    fileId=file_id,
-                    body=permission,
-                    supportsAllDrives=True,
-                    sendNotificationEmail=False
-                ).execute()
-                
-                # 更新權限轉為 owner
-                transfer_perm = {
-                    'type': 'user',
-                    'role': 'owner',
-                    'emailAddress': owner_email
-                }
-                # create a new permission with role=owner and transferOwnership=True
-                service.permissions().create(
-                    fileId=file_id,
-                    body=transfer_perm,
-                    transferOwnership=True,
-                    supportsAllDrives=True,
-                    sendNotificationEmail=False
-                ).execute()
-    except Exception as e:
-        print(f"嘗試轉移 ownership 失敗 (這在一般 @gmail.com 帳號間可能不被允許): {e}")
-        
     return file_id
 
 def delete_file_from_drive(file_id):
