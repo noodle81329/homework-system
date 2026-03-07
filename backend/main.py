@@ -60,19 +60,27 @@ def get_student_status(
     if not student_name:
          raise HTTPException(status_code=400, detail="Student name missing in token")
          
-    folder_id = settings.get_target_folder_id(class_slug)
+    folder_id, assignment_name = settings.get_class_info(class_slug)
     if not folder_id:
         return {
             "is_submitted": False,
             "submitted_at": None,
             "file_name": None,
-            "total_submissions": 0
+            "total_submissions": 0,
+            "assignment_name": assignment_name
         }
         
     files = drive.list_files_in_folder(folder_id)
-    total_submissions = len(files)
     
-    prefix = f"[{student_name}] "
+    # 決定前綴
+    if assignment_name:
+        prefix = f"[{assignment_name}][{student_name}] "
+        # 計算此作業的總繳交數
+        total_submissions = sum(1 for f in files if f['name'].startswith(f"[{assignment_name}]"))
+    else:
+        prefix = f"[{student_name}] "
+        total_submissions = len(files)
+    
     my_file = next((f for f in files if f['name'].startswith(prefix)), None)
     
     if my_file:
@@ -81,14 +89,16 @@ def get_student_status(
             "is_submitted": True,
             "submitted_at": my_file.get('createdTime'),
             "file_name": original_name,
-            "total_submissions": total_submissions
+            "total_submissions": total_submissions,
+            "assignment_name": assignment_name
         }
     
     return {
         "is_submitted": False,
         "submitted_at": None,
         "file_name": None,
-        "total_submissions": total_submissions
+        "total_submissions": total_submissions,
+        "assignment_name": assignment_name
     }
 
 @app.post("/api/student/upload")
@@ -102,14 +112,18 @@ async def upload_homework(
         
     student_name = current_user.get("name")
     
-    target_folder_id = settings.get_target_folder_id(class_slug)
-    if not target_folder_id:
+    folder_id, assignment_name = settings.get_class_info(class_slug)
+    if not folder_id:
         raise HTTPException(status_code=400, detail="Teacher hasn't set the target folder yet.")
     
-    prefix = f"[{student_name}] "
+    if assignment_name:
+        prefix = f"[{assignment_name}][{student_name}] "
+    else:
+        prefix = f"[{student_name}] "
+        
     uploaded_filename = f"{prefix}{file.filename}"
     
-    files = drive.list_files_in_folder(target_folder_id)
+    files = drive.list_files_in_folder(folder_id)
     my_file = next((f for f in files if f['name'].startswith(prefix)), None)
     if my_file:
         drive.delete_file_from_drive(my_file['id'])
@@ -117,7 +131,7 @@ async def upload_homework(
     contents = await file.read()
     file_obj = io.BytesIO(contents)
     
-    drive.upload_file_to_drive(file_obj, uploaded_filename, target_folder_id, file.content_type)
+    drive.upload_file_to_drive(file_obj, uploaded_filename, folder_id, file.content_type)
     
     return {"message": "Upload successful", "file_name": file.filename}
 
@@ -129,26 +143,43 @@ def get_all_submissions(
     if current_user["role"] != "teacher":
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    folder_id = settings.get_target_folder_id(class_slug)
+    folder_id, assignment_name = settings.get_class_info(class_slug)
     if not folder_id:
         return []
         
     files = drive.list_files_in_folder(folder_id)
     
     submissions = []
+    
     for f in files:
-        name_parts = f['name'].split("] ", 1)
-        if len(name_parts) == 2 and name_parts[0].startswith("["):
-            student_name = name_parts[0][1:]
-            file_name = name_parts[1]
+        file_name = f['name']
+        
+        # 如果有設定 assignment_name，只過濾該作業的紀錄
+        if assignment_name:
+            if not file_name.startswith(f"[{assignment_name}]"):
+                continue
+            # 解析: [AssignmentName][StudentName] original_file
+            rest = file_name[len(f"[{assignment_name}]"):]
+            if rest.startswith("["):
+                name_parts = rest.split("] ", 1)
+                student_name = name_parts[0][1:] if len(name_parts) == 2 else "Unknown"
+                orig_file = name_parts[1] if len(name_parts) == 2 else rest
+            else:
+                student_name = "Unknown"
+                orig_file = rest
         else:
-            student_name = "Unknown"
-            file_name = f['name']
-            
+            name_parts = file_name.split("] ", 1)
+            if len(name_parts) == 2 and name_parts[0].startswith("["):
+                student_name = name_parts[0][1:]
+                orig_file = name_parts[1]
+            else:
+                student_name = "Unknown"
+                orig_file = file_name
+                
         submissions.append({
             "student_name": student_name,
             "is_submitted": True,
-            "file_name": file_name,
+            "file_name": orig_file,
             "submitted_at": f.get('createdTime')
         })
         
@@ -165,12 +196,14 @@ def get_all_classes(current_user: dict = Depends(auth.get_current_user)):
 def save_class(
     class_slug: str = Form(...),
     folder_id: str = Form(...),
+    assignment_name: str = Form(""),
     current_user: dict = Depends(auth.get_current_user)
 ):
     """新增或修改班級設定"""
     if current_user["role"] != "teacher":
         raise HTTPException(status_code=403, detail="Not authorized")
-    success = settings.save_class_folder(class_slug, folder_id)
+        
+    success = settings.save_class_folder(class_slug, folder_id, assignment_name)
     if success:
         return {"message": "Class saved", "class_slug": class_slug}
     else:
@@ -186,20 +219,3 @@ def delete_class(class_slug: str, current_user: dict = Depends(auth.get_current_
         return {"message": "Class deleted"}
     else:
         raise HTTPException(status_code=404, detail="Class not found")
-
-# 向後相容舊版 API
-@app.get("/api/teacher/settings")
-def get_endpoint_settings(current_user: dict = Depends(auth.get_current_user)):
-    if current_user["role"] != "teacher":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return {"target_folder_id": settings.get_target_folder_id()}
-
-@app.post("/api/teacher/settings")
-def save_endpoint_settings(folder_id: str = Form(...), current_user: dict = Depends(auth.get_current_user)):
-    if current_user["role"] != "teacher":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    success = settings.save_target_folder_id(folder_id)
-    if success:
-        return {"message": "Settings saved"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to save settings")

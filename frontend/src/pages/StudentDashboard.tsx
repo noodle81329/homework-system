@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { UploadCloud, CheckCircle, FileText, Users, LogOut, Loader2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, FileText, Users, LogOut, Loader2, BookOpen } from 'lucide-react';
 import api from '../api';
 
 const StudentDashboard = () => {
@@ -95,19 +95,32 @@ const StudentDashboard = () => {
           登出
         </button>
       </div>
+      
+      {/* Current Assignment Notice (If Any) */}
+      {status?.assignment_name && (
+        <div className="w-full bg-indigo-50 text-indigo-700 px-6 py-4 rounded-3xl flex items-center gap-4 mb-6 border border-indigo-100 shadow-sm">
+          <BookOpen size={24} className="text-indigo-500" />
+          <div>
+            <p className="text-sm font-medium text-indigo-500/80 mb-0.5">目前指定作業</p>
+            <p className="text-lg font-bold">{status.assignment_name}</p>
+          </div>
+        </div>
+      )}
 
       <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Status Card */}
         <div className="col-span-1 md:col-span-2 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex items-center gap-6">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${status?.is_submitted ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'}`}>
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 ${status?.is_submitted ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'}`}>
             {status?.is_submitted ? <CheckCircle size={32} /> : <FileText size={32} />}
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-lg font-semibold text-slate-500 mb-1">您的繳交狀態</h3>
             {status?.is_submitted ? (
               <div>
                 <p className="text-2xl font-bold text-slate-800 mb-1">已繳交</p>
-                <p className="text-sm text-slate-400">當前檔案：{status.file_name}</p>
+                <p className="text-sm text-slate-400 truncate" title={status.file_name}>
+                  檔案：{status.file_name}
+                </p>
               </div>
             ) : (
               <p className="text-2xl font-bold text-slate-800">尚未繳交</p>
@@ -120,25 +133,25 @@ const StudentDashboard = () => {
           <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center mb-4">
             <Users size={24} />
           </div>
-          <h3 className="text-sm font-semibold text-slate-500 mb-1">目前總繳交人數</h3>
+          <h3 className="text-sm font-semibold text-slate-500 mb-1">本作業總繳交人數</h3>
           <p className="text-3xl font-bold text-slate-800">{status?.total_submissions || 0}</p>
         </div>
       </div>
 
       {/* Upload Interface */}
-      <div className="w-full bg-white rounded-3xl p-10 border border-slate-100 shadow-sm flex flex-col items-center">
+      <div className="w-full bg-white rounded-3xl p-10 border border-slate-100 shadow-sm flex flex-col items-center flex-1 lg:flex-none">
         <h2 className="text-xl font-bold text-slate-800 mb-2">
           {status?.is_submitted ? '重新上傳作業 (更新檔案)' : '上傳繳交作業'}
         </h2>
         <p className="text-slate-500 mb-8 text-center max-w-md">
           支援 PDF、Word、ZIP 等一般格式檔案，系統會安全加密並傳送至課程專屬雲端空間。 <br/>
-          (檔名前方將自動附加您的姓名前綴)
+          (檔名前方將自動附加您的作業名稱與姓名)
         </p>
 
         <div className="w-full max-w-lg">
           <label className="w-full flex flex-col items-center px-4 py-8 bg-slate-50 text-slate-500 rounded-2xl border-2 border-dashed border-slate-200 cursor-pointer hover:bg-slate-100/50 hover:border-indigo-300 transition-colors">
             <UploadCloud size={48} className="text-indigo-400 mb-4" />
-            <span className="text-lg font-medium mb-1">
+            <span className="text-lg font-medium mb-1 truncate max-w-full px-4 text-center">
               {file ? file.name : "點擊選擇檔案上傳"}
             </span>
             <span className="text-sm text-slate-400">
