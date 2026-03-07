@@ -1,0 +1,19 @@
+# Node / Frontend
+node_modules/
+dist/
+.env
+
+# Python / Backend
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+homework.db
+google-credentials.json
+service-account.json
+settings.json
+.env
+
+# OS
+.DS_Store
+Thumbs.db
