@@ -21,7 +21,7 @@ const StudentDashboard = () => {
 
   const fetchStatus = async () => {
     try {
-      const params = classSlug ? { class_slug: classSlug } : {};
+      const params: Record<string, string> = classSlug ? { class_slug: classSlug } : {};
       const res = await api.get('/student/status', { params });
       setStatus(res.data);
     } catch (err) {
