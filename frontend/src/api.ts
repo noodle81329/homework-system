@@ -39,7 +39,8 @@ async function request(path: string, options: {
     });
     fetchOptions.headers = { 'Content-Type': 'text/plain' };
   } else if (body && typeof body === 'object' && !(body instanceof FormData)) {
-    fetchOptions.body = JSON.stringify({ ...body, token });
+    const bodyData = token ? { ...body, token } : { ...body };
+    fetchOptions.body = JSON.stringify(bodyData);
     fetchOptions.headers = { 'Content-Type': 'text/plain' };
   } else if (body instanceof FormData) {
     // 一般 FormData（班級設定）
