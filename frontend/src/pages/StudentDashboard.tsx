@@ -75,9 +75,7 @@ const StudentDashboard = () => {
 
     try {
       const params = classSlug ? `?class_slug=${classSlug}` : '';
-      await api.post(`/student/upload${params}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await api.post(`/student/upload${params}`, formData);
       setFile(null);
       await fetchStatus();
     } catch (err: any) {
