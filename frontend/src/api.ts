@@ -78,7 +78,7 @@ const api = {
   get: (path: string, options?: { params?: Record<string, string> }) =>
     request(path, { method: 'GET', params: options?.params }),
 
-  post: (path: string, body?: any, config?: any) => {
+  post: (path: string, body?: any) => {
     const isUpload = body instanceof FormData && body.has('file');
     return request(path, { method: 'POST', body, isUpload });
   },
